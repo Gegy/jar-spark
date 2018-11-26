@@ -1,5 +1,8 @@
 package net.gegy1000.bootstrap.loader;
 
+import net.gegy1000.bootstrap.EquilinoxLaunch;
+import net.gegy1000.bootstrap.transformer.IByteTransformer;
+
 import java.io.DataInputStream;
 import java.io.IOException;
 import java.net.JarURLConnection;
@@ -8,25 +11,41 @@ import java.net.URLClassLoader;
 import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
+import java.util.Collection;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
 public class TransformingClassLoader extends URLClassLoader {
-    public TransformingClassLoader(URL[] urls, ClassLoader parent) {
-        super(urls, parent);
+    public TransformingClassLoader(ClassLoader parent) {
+        super(new URL[0], parent);
     }
 
     @Override
     protected Class<?> findClass(String name) throws ClassNotFoundException {
-        // TODO: Filter & transform
+        // TODO: Filter
         try {
             URLConnection connection = this.openClassConnection(name);
             CodeSource source = this.getSource(name, connection);
             byte[] bytes = this.readClassBytes(connection);
-            return this.defineClass(name, bytes, 0, bytes.length, source);
+            byte[] transformedBytes = this.transformClass(name, bytes);
+            return this.defineClass(name, transformedBytes, 0, transformedBytes.length, source);
         } catch (IOException e) {
             throw new ClassNotFoundException("Failed to read class", e);
         }
+    }
+
+    private byte[] transformClass(String target, byte[] input) {
+        Collection<IByteTransformer> transformers = EquilinoxLaunch.ROSTER.collectVolunteers(target);
+        if (transformers.isEmpty()) {
+            return input;
+        }
+
+        byte[] bytes = input;
+        for (IByteTransformer transformer : transformers) {
+            bytes = transformer.transform(target, bytes);
+        }
+
+        return bytes;
     }
 
     private byte[] readClassBytes(URLConnection connection) throws IOException {
@@ -58,5 +77,10 @@ public class TransformingClassLoader extends URLClassLoader {
 
     private static String toPath(String name) {
         return name.replace('.', '/') + ".class";
+    }
+
+    @Override
+    public void addURL(URL url) {
+        super.addURL(url);
     }
 }

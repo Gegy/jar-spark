@@ -1,11 +1,12 @@
 package net.gegy1000.bootstrap;
 
-import net.gegy1000.bootstrap.loader.TransformingClassLoader;
 import net.gegy1000.bootstrap.natives.NativeExtractor;
 import net.gegy1000.bootstrap.plugin.IBootstrapPlugin;
 
 import java.io.File;
+import java.io.IOException;
 import java.net.URL;
+import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.ArrayList;
@@ -21,16 +22,19 @@ public class EquilinoxBootstrap {
     }
 
     public void launch() throws Exception {
+        Thread.currentThread().setContextClassLoader(EquilinoxLaunch.CLASS_LOADER);
+
         try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
             nativeExtractor.extractTo(this.config.getNativeDir());
         }
 
-        ClassLoader parent = EquilinoxBootstrap.class.getClassLoader();
         URL launchJarUrl = this.config.getLaunchJar().toUri().toURL();
-        ClassLoader classLoader = new TransformingClassLoader(new URL[] { launchJarUrl }, parent);
+        EquilinoxLaunch.CLASS_LOADER.addURL(launchJarUrl);
 
-        // TODO: static classloader?
-        Thread.currentThread().setContextClassLoader(classLoader);
+        Collection<IBootstrapPlugin> plugins = this.collectPlugins();
+        for (IBootstrapPlugin plugin : plugins) {
+            plugin.volunteerTransformers(EquilinoxLaunch.ROSTER);
+        }
 
         LibraryInjector.inject(this.config.getNativeDir());
 
@@ -41,7 +45,7 @@ public class EquilinoxBootstrap {
             launcher.setMainClass(mainClass);
         }
 
-        launcher.launch(classLoader);
+        launcher.launch(EquilinoxLaunch.CLASS_LOADER);
     }
 
     public void cleanUp() {
@@ -57,14 +61,37 @@ public class EquilinoxBootstrap {
     }
 
     private Collection<IBootstrapPlugin> collectPlugins() {
+        Path pluginRoot = this.config.getLaunchDir().resolve("plugins");
+
         Collection<IBootstrapPlugin> plugins = new ArrayList<>();
 
-        // TODO: Scan in files
-        ServiceLoader<IBootstrapPlugin> loader = ServiceLoader.load(IBootstrapPlugin.class);
+        try {
+            this.loadPluginsToClasspath(pluginRoot);
+        } catch (IOException e) {
+            // TODO
+            e.printStackTrace();
+        }
+
+        ServiceLoader<IBootstrapPlugin> loader = ServiceLoader.load(IBootstrapPlugin.class, EquilinoxLaunch.CLASS_LOADER);
         for (IBootstrapPlugin plugin : loader) {
             plugins.add(plugin);
         }
 
         return plugins;
+    }
+
+    private void loadPluginsToClasspath(Path pluginRoot) throws IOException {
+        if (!Files.exists(pluginRoot)) {
+            Files.createDirectory(pluginRoot);
+        }
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginRoot)) {
+            for (Path plugin : stream) {
+                if (Files.isDirectory(plugin)) {
+                    continue;
+                }
+                URL url = plugin.toUri().toURL();
+                EquilinoxLaunch.CLASS_LOADER.addURL(url);
+            }
+        }
     }
 }
