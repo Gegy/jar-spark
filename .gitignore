@@ -1,0 +1,13 @@
+# Gradle
+
+.gradle/
+
+# IDEA
+
+.idea/
+out/
+
+# Equilinox
+
+*.dat
+*.iml

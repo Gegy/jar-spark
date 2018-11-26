@@ -1,0 +1,17 @@
+plugins {
+  id 'java'
+}
+
+group 'net.gegy1000'
+version '0.1.0-SNAPSHOT'
+
+sourceCompatibility = 1.8
+
+repositories {
+  mavenCentral()
+  jcenter()
+}
+
+dependencies {
+  compile 'net.sf.jopt-simple:jopt-simple:5.0.4'
+}
