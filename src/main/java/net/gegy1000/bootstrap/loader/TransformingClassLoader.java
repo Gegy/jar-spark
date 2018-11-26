@@ -9,6 +9,7 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
+import java.nio.file.Path;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.Collection;
@@ -82,5 +83,9 @@ public class TransformingClassLoader extends URLClassLoader {
     @Override
     public void addURL(URL url) {
         super.addURL(url);
+    }
+
+    public void addJar(Path path) throws IOException {
+        this.addURL(path.toUri().toURL());
     }
 }

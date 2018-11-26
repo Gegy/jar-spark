@@ -5,7 +5,6 @@ import net.gegy1000.bootstrap.plugin.IBootstrapPlugin;
 
 import java.io.File;
 import java.io.IOException;
-import java.net.URL;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -24,12 +23,12 @@ public class EquilinoxBootstrap {
     public void launch() throws Exception {
         Thread.currentThread().setContextClassLoader(EquilinoxLaunch.CLASS_LOADER);
 
+        this.clearNatives();
         try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
             nativeExtractor.extractTo(this.config.getNativeDir());
         }
 
-        URL launchJarUrl = this.config.getLaunchJar().toUri().toURL();
-        EquilinoxLaunch.CLASS_LOADER.addURL(launchJarUrl);
+        EquilinoxLaunch.CLASS_LOADER.addJar(this.config.getLaunchJar());
 
         Collection<IBootstrapPlugin> plugins = this.collectPlugins();
         for (IBootstrapPlugin plugin : plugins) {
@@ -48,15 +47,18 @@ public class EquilinoxBootstrap {
         launcher.launch(EquilinoxLaunch.CLASS_LOADER);
     }
 
-    public void cleanUp() {
-        try {
-            Files.walk(this.config.getNativeDir())
-                    .sorted(Comparator.reverseOrder())
-                    .map(Path::toFile)
-                    .forEach(File::delete);
-        } catch (Exception e) {
-            // TODO
-            e.printStackTrace();
+    private void clearNatives() {
+        Path nativeDir = this.config.getNativeDir();
+        if (Files.exists(nativeDir)) {
+            try {
+                Files.walk(nativeDir)
+                        .sorted(Comparator.reverseOrder())
+                        .map(Path::toFile)
+                        .forEach(File::delete);
+            } catch (Exception e) {
+                // TODO
+                e.printStackTrace();
+            }
         }
     }
 
@@ -86,11 +88,10 @@ public class EquilinoxBootstrap {
         }
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginRoot)) {
             for (Path plugin : stream) {
-                if (Files.isDirectory(plugin)) {
+                if (Files.isDirectory(plugin) || !plugin.toString().endsWith(".jar")) {
                     continue;
                 }
-                URL url = plugin.toUri().toURL();
-                EquilinoxLaunch.CLASS_LOADER.addURL(url);
+                EquilinoxLaunch.CLASS_LOADER.addJar(plugin);
             }
         }
     }

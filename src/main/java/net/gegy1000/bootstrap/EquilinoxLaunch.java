@@ -17,8 +17,6 @@ public class EquilinoxLaunch {
             bootstrap.launch();
         } catch (Exception e) {
             // TODO: log
-        } finally {
-            bootstrap.cleanUp();
         }
     }
 }

@@ -18,6 +18,10 @@ public class NativeExtractor implements AutoCloseable {
     }
 
     public void extractTo(Path path) throws IOException {
+        if (!Files.exists(path)) {
+            Files.createDirectory(path);
+        }
+
         for (PackagedNative packagedNative : this.collector) {
             this.extractNative(path, packagedNative);
         }

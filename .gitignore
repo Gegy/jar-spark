@@ -6,8 +6,10 @@
 
 .idea/
 out/
+*.iml
 
 # Equilinox
 
 *.dat
-*.iml
+plugins/
+natives/

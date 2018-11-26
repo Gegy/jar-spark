@@ -6,10 +6,8 @@ import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
 import joptsimple.util.PathProperties;
 
-import java.io.File;
 import java.nio.file.Path;
 import java.nio.file.Paths;
-import java.util.Random;
 
 public class BootstrapConfig {
     private final OptionSet optionSet;
@@ -47,30 +45,13 @@ public class BootstrapConfig {
 
         OptionSpec<Path> nativeDir = parser.accepts("nativeDir", "The directory for natives to be extracted to")
                 .withOptionalArg()
-                .withValuesConvertedBy(new PathConverter(PathProperties.DIRECTORY_EXISTING))
-                .defaultsTo(Paths.get(getNativeDirectory()));
+                .withValuesConvertedBy(new PathConverter(PathProperties.DIRECTORY_EXISTING));
 
         OptionSpec<String> mainClass = parser.accepts("mainClass", "The fully qualified main class name to be invoked")
                 .withOptionalArg();
 
         OptionSet optionSet = parser.parse(arguments);
         return new BootstrapConfig(optionSet, launchJar, launchDir, nativeDir, mainClass);
-    }
-
-    // TODO: rework
-    private static String getNativeDirectory() {
-        String nativeDir = System.getProperty("deployment.user.cachedir");
-        if (nativeDir == null || System.getProperty("os.name").startsWith("Win")) {
-            nativeDir = System.getProperty("java.io.tmpdir");
-        }
-
-        nativeDir = nativeDir + File.separator + "natives" + (new Random()).nextInt();
-        File dir = new File(nativeDir);
-        if (!dir.exists()) {
-            dir.mkdirs();
-        }
-
-        return nativeDir;
     }
 
     public Path getLaunchJar() {
@@ -82,7 +63,11 @@ public class BootstrapConfig {
     }
 
     public Path getNativeDir() {
-        return this.nativeDir.value(this.optionSet);
+        Path natives = this.nativeDir.value(this.optionSet);
+        if (natives == null) {
+            return this.getLaunchDir().resolve("natives");
+        }
+        return natives;
     }
 
     public String getMainClass() {
