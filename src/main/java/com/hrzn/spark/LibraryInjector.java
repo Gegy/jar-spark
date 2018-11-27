@@ -1,4 +1,4 @@
-package net.gegy1000.spark;
+package com.hrzn.spark;
 
 import java.io.File;
 import java.lang.reflect.Field;
@@ -33,7 +33,7 @@ public class LibraryInjector {
             sysPaths.setAccessible(true);
             sysPaths.set(null, null);
         } catch (ReflectiveOperationException e) {
-            // TODO: Logger
+            SparkLauncher.LOGGER.error("Failed to invalidate library path", e);
         }
     }
 }

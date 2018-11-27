@@ -1,4 +1,4 @@
-package net.gegy1000.spark.transformer;
+package com.hrzn.spark.transformer;
 
 /**
  * A bytecode transformer acting on raw class bytes

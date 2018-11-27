@@ -1,7 +1,7 @@
-package net.gegy1000.spark.loader;
+package com.hrzn.spark.loader;
 
-import net.gegy1000.spark.SparkLauncher;
-import net.gegy1000.spark.transformer.IByteTransformer;
+import com.hrzn.spark.transformer.IByteTransformer;
+import com.hrzn.spark.SparkLauncher;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -146,7 +146,7 @@ public class TransformingClassLoader extends URLClassLoader {
                 JarEntry entry = jar.getJarEntry(toPath(name));
                 return new JarContext(jarConnection.getJarFileURL(), entry.getCodeSigners(), jar.getManifest());
             } catch (IOException e) {
-                // TODO: Logger
+                SparkLauncher.LOGGER.error("Failed to load jar context for {}", name, e);
             }
         }
         return null;

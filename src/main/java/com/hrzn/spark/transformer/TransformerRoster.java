@@ -1,4 +1,4 @@
-package net.gegy1000.spark.transformer;
+package com.hrzn.spark.transformer;
 
 import java.util.ArrayList;
 import java.util.Collection;

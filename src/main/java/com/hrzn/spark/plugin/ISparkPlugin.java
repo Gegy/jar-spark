@@ -1,13 +1,13 @@
-package net.gegy1000.spark.plugin;
+package com.hrzn.spark.plugin;
 
-import net.gegy1000.spark.BootstrapConfig;
-import net.gegy1000.spark.loader.TransformingClassLoader;
-import net.gegy1000.spark.transformer.TransformerRoster;
+import com.hrzn.spark.BootstrapConfig;
+import com.hrzn.spark.loader.TransformingClassLoader;
+import com.hrzn.spark.transformer.TransformerRoster;
 
 /**
  * A plugin to be loaded before game startup, allowing for bytecode transformers to be registered
  */
-public interface IBootstrapPlugin {
+public interface ISparkPlugin {
     void acceptConfig(BootstrapConfig config);
 
     void acceptClassloader(TransformingClassLoader classLoader);

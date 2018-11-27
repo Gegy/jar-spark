@@ -1,4 +1,4 @@
-package net.gegy1000.spark;
+package com.hrzn.spark;
 
 import java.util.HashMap;
 import java.util.Map;

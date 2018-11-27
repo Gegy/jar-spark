@@ -1,11 +1,13 @@
 plugins {
   id 'java'
+  id 'maven-publish'
 }
 
-group 'net.gegy1000'
+group 'com.hrznstudio'
 version '0.1.0-SNAPSHOT'
+archivesBaseName = project.name
 
-sourceCompatibility = 1.8
+sourceCompatibility = targetCompatibility = 1.8
 
 repositories {
   mavenCentral()
@@ -14,11 +16,45 @@ repositories {
 }
 
 dependencies {
-  // TODO: ?
-  compileOnly 'org.spongepowered:mixin-bare:0.7.11-SNAPSHOT'
-
-  compileOnly files('plugins/mixin-equilinox-0.1.0-SNAPSHOT.jar')
   compile 'org.apache.logging.log4j:log4j-core:2.0-beta9'
-
   compile 'net.sf.jopt-simple:jopt-simple:5.0.4'
+}
+
+task sourceJar(type: Jar, dependsOn: classes) {
+  classifier = "sources"
+  from sourceSets.main.allSource
+}
+
+task javadocJar(type: Jar, dependsOn: javadoc) {
+  classifier = "javadoc"
+  from javadoc.getDestinationDir()
+}
+
+artifacts {
+  archives sourceJar
+  archives javadocJar
+}
+
+publishing {
+  publications {
+    mavenJava(MavenPublication) {
+      groupId project.group
+      artifactId project.archivesBaseName
+      version project.version
+
+      from components.java
+
+      artifact sourceJar { classifier "sources" }
+      artifact javadocJar { classifier "javadoc" }
+    }
+  }
+  repositories {
+    maven {
+      credentials {
+        username project.mavenUsername ?: ""
+        password project.mavenPassword ?: ""
+      }
+      url project.mavenUrl ?: ""
+    }
+  }
 }
