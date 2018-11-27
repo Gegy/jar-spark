@@ -6,26 +6,24 @@ import joptsimple.OptionSpec;
 import joptsimple.util.PathConverter;
 import joptsimple.util.PathProperties;
 
+import java.net.URISyntaxException;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
 public class BootstrapConfig {
     private final OptionSet optionSet;
     private final OptionSpec<Path> launchJar;
-    private final OptionSpec<Path> launchDir;
     private final OptionSpec<Path> nativeDir;
     private final OptionSpec<String> mainClass;
 
     private BootstrapConfig(
             OptionSet optionSet,
             OptionSpec<Path> launchJar,
-            OptionSpec<Path> launchDir,
             OptionSpec<Path> nativeDir,
             OptionSpec<String> mainClass
     ) {
         this.optionSet = optionSet;
         this.launchJar = launchJar;
-        this.launchDir = launchDir;
         this.nativeDir = nativeDir;
         this.mainClass = mainClass;
     }
@@ -35,13 +33,8 @@ public class BootstrapConfig {
         parser.allowsUnrecognizedOptions();
 
         OptionSpec<Path> launchJar = parser.accepts("launchJar", "The jar to launch after bootstrap")
-                .withRequiredArg()
-                .withValuesConvertedBy(new PathConverter(PathProperties.FILE_EXISTING));
-
-        OptionSpec<Path> launchDir = parser.accepts("launchDir", "The directory for the game to launch within, this is where all game files will be kept")
                 .withOptionalArg()
-                .withValuesConvertedBy(new PathConverter(PathProperties.DIRECTORY_EXISTING))
-                .defaultsTo(Paths.get(""));
+                .withValuesConvertedBy(new PathConverter(PathProperties.FILE_EXISTING));
 
         OptionSpec<Path> nativeDir = parser.accepts("nativeDir", "The directory for natives to be extracted to")
                 .withOptionalArg()
@@ -51,21 +44,25 @@ public class BootstrapConfig {
                 .withOptionalArg();
 
         OptionSet optionSet = parser.parse(arguments);
-        return new BootstrapConfig(optionSet, launchJar, launchDir, nativeDir, mainClass);
+        return new BootstrapConfig(optionSet, launchJar, nativeDir, mainClass);
     }
 
     public Path getLaunchJar() {
-        return this.launchJar.value(this.optionSet);
-    }
-
-    public Path getLaunchDir() {
-        return this.launchDir.value(this.optionSet);
+        Path launchJar = this.launchJar.value(this.optionSet);
+        if (launchJar == null) {
+            try {
+                return Paths.get(EquilinoxLaunch.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+            } catch (URISyntaxException e) {
+                throw new IllegalStateException("Current jar file was invalid, cannot launch!");
+            }
+        }
+        return launchJar;
     }
 
     public Path getNativeDir() {
         Path natives = this.nativeDir.value(this.optionSet);
         if (natives == null) {
-            return this.getLaunchDir().resolve("natives");
+            return EquilinoxLaunch.LAUNCH_DIR.resolve("natives");
         }
         return natives;
     }

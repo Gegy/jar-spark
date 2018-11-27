@@ -63,7 +63,7 @@ public class EquilinoxBootstrap {
     }
 
     private Collection<IBootstrapPlugin> collectPlugins() {
-        Path pluginRoot = this.config.getLaunchDir().resolve("plugins");
+        Path pluginRoot = EquilinoxLaunch.LAUNCH_DIR.resolve("plugins");
 
         Collection<IBootstrapPlugin> plugins = new ArrayList<>();
 
