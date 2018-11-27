@@ -8,8 +8,9 @@
 out/
 *.iml
 
-# Equilinox
+# Run
 
 *.dat
 plugins/
 natives/
+.mixin.out/

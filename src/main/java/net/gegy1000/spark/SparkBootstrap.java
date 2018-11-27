@@ -1,7 +1,7 @@
-package net.gegy1000.bootstrap;
+package net.gegy1000.spark;
 
-import net.gegy1000.bootstrap.natives.NativeExtractor;
-import net.gegy1000.bootstrap.plugin.IBootstrapPlugin;
+import net.gegy1000.spark.natives.NativeExtractor;
+import net.gegy1000.spark.plugin.IBootstrapPlugin;
 
 import java.io.File;
 import java.io.IOException;
@@ -12,6 +12,7 @@ import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Collection;
 import java.util.Comparator;
+import java.util.Iterator;
 import java.util.ServiceLoader;
 import java.util.jar.Attributes;
 import java.util.jar.JarFile;
@@ -20,12 +21,13 @@ import java.util.jar.JarFile;
  * Given a config, this carries out the bootstrap process: extracting natives, loading plugins, injecting natives,
  * initializing the classloader and invoking the launch jar.
  */
-public class EquilinoxBootstrap {
+public class SparkBootstrap {
     private static final String MAIN_CLASS_ATTRIBUTE = "Main-Class";
 
     private final BootstrapConfig config;
+    private final Collection<IBootstrapPlugin> plugins = new ArrayList<>();
 
-    public EquilinoxBootstrap(BootstrapConfig config) {
+    public SparkBootstrap(BootstrapConfig config) {
         this.config = config;
     }
 
@@ -35,24 +37,32 @@ public class EquilinoxBootstrap {
      * @throws Exception if the launch process failed
      */
     public void launch() throws Exception {
-        Thread.currentThread().setContextClassLoader(EquilinoxLaunch.CLASS_LOADER);
+        Thread.currentThread().setContextClassLoader(SparkLauncher.CLASS_LOADER);
 
         this.clearNatives();
         try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
             nativeExtractor.extractTo(this.config.getNativeDir());
         }
 
-        // Add the launch jar so that our classloader can load classes from it
-        EquilinoxLaunch.CLASS_LOADER.addJar(this.config.getLaunchJar());
+        SparkBlackboard.CONFIG.set(this.config);
 
-        this.loadPlugins();
+        // Add the launch jar so that our classloader can load classes from it
+        SparkLauncher.CLASS_LOADER.addJar(this.config.getLaunchJar());
+
+        this.plugins.addAll(this.loadPlugins());
+
+        this.plugins.forEach(p -> p.acceptConfig(this.config));
+        this.plugins.forEach(p -> p.acceptClassloader(SparkLauncher.CLASS_LOADER));
+        this.plugins.forEach(p -> p.volunteerTransformers(SparkLauncher.ROSTER));
 
         LibraryInjector.inject(this.config.getNativeDir());
 
         // Invoke the given main class with any given arguments
 
-        Class<?> mainClass = EquilinoxLaunch.CLASS_LOADER.loadClass(this.computeMainClass());
+        Class<?> mainClass = SparkLauncher.CLASS_LOADER.loadClass(this.computeMainClass());
         String[] arguments = this.config.getNonOptions().toArray(new String[0]);
+
+        this.plugins.forEach(p -> p.launch(arguments));
 
         Method main = mainClass.getDeclaredMethod("main", String[].class);
         main.invoke(null, new Object[] { arguments });
@@ -77,10 +87,13 @@ public class EquilinoxBootstrap {
     }
 
     /**
-     * Loads plugins onto the classpath and registers them to the TransformerRoster
+     * Loads plugins onto the classpath and then collects them
+     *
+     * @return all loaded plugins from the classpath
      */
-    private void loadPlugins() {
-        Path pluginRoot = EquilinoxLaunch.LAUNCH_DIR.resolve("plugins");
+    private Collection<IBootstrapPlugin> loadPlugins() {
+        // TODO: should plugins be loaded on the same classloader as the game?
+        Path pluginRoot = SparkLauncher.LAUNCH_DIR.resolve("plugins");
         try {
             this.loadPluginsToClasspath(pluginRoot);
         } catch (IOException e) {
@@ -88,10 +101,7 @@ public class EquilinoxBootstrap {
             e.printStackTrace();
         }
 
-        Collection<IBootstrapPlugin> plugins = this.collectPlugins();
-        for (IBootstrapPlugin plugin : plugins) {
-            plugin.volunteerTransformers(EquilinoxLaunch.ROSTER);
-        }
+        return this.collectPlugins();
     }
 
     /**
@@ -102,9 +112,15 @@ public class EquilinoxBootstrap {
     private Collection<IBootstrapPlugin> collectPlugins() {
         Collection<IBootstrapPlugin> plugins = new ArrayList<>();
 
-        ServiceLoader<IBootstrapPlugin> loader = ServiceLoader.load(IBootstrapPlugin.class, EquilinoxLaunch.CLASS_LOADER);
-        for (IBootstrapPlugin plugin : loader) {
-            plugins.add(plugin);
+        ServiceLoader<IBootstrapPlugin> loader = ServiceLoader.load(IBootstrapPlugin.class, SparkLauncher.CLASS_LOADER);
+        Iterator<IBootstrapPlugin> iterator = loader.iterator();
+        while (iterator.hasNext()) {
+            try {
+                plugins.add(iterator.next());
+            } catch (Throwable t) {
+                // TODO
+                t.printStackTrace();
+            }
         }
 
         return plugins;
@@ -125,7 +141,7 @@ public class EquilinoxBootstrap {
                 if (Files.isDirectory(plugin) || !plugin.toString().endsWith(".jar")) {
                     continue;
                 }
-                EquilinoxLaunch.CLASS_LOADER.addJar(plugin);
+                SparkLauncher.CLASS_LOADER.addJar(plugin);
             }
         }
     }

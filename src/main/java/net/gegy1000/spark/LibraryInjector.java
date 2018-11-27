@@ -1,4 +1,4 @@
-package net.gegy1000.bootstrap;
+package net.gegy1000.spark;
 
 import java.io.File;
 import java.lang.reflect.Field;

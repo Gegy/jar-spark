@@ -10,8 +10,15 @@ sourceCompatibility = 1.8
 repositories {
   mavenCentral()
   jcenter()
+  maven { url = 'https://maven.gegy1000.net/' }
 }
 
 dependencies {
+  // TODO: ?
+  compileOnly 'org.spongepowered:mixin-bare:0.7.11-SNAPSHOT'
+
+  compileOnly files('plugins/mixin-equilinox-0.1.0-SNAPSHOT.jar')
+  compile 'org.apache.logging.log4j:log4j-core:2.0-beta9'
+
   compile 'net.sf.jopt-simple:jopt-simple:5.0.4'
 }

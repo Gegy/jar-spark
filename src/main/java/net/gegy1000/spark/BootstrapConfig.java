@@ -1,4 +1,4 @@
-package net.gegy1000.bootstrap;
+package net.gegy1000.spark;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
@@ -74,7 +74,7 @@ public class BootstrapConfig {
         Path launchJar = this.launchJar.value(this.optionSet);
         if (launchJar == null) {
             try {
-                return Paths.get(EquilinoxLaunch.class.getProtectionDomain().getCodeSource().getLocation().toURI());
+                return Paths.get(SparkLauncher.class.getProtectionDomain().getCodeSource().getLocation().toURI());
             } catch (URISyntaxException e) {
                 throw new IllegalStateException("Current jar file is invalid, cannot launch!", e);
             }
@@ -93,7 +93,7 @@ public class BootstrapConfig {
     public Path getNativeDir() {
         Path natives = this.nativeDir.value(this.optionSet);
         if (natives == null) {
-            return EquilinoxLaunch.LAUNCH_DIR.resolve("natives");
+            return SparkLauncher.LAUNCH_DIR.resolve("natives");
         }
         return natives;
     }
