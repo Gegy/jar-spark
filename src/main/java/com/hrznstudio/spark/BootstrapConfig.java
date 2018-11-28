@@ -1,4 +1,4 @@
-package com.hrzn.spark;
+package com.hrznstudio.spark;
 
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;

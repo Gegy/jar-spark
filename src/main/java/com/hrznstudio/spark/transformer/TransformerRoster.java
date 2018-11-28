@@ -1,4 +1,4 @@
-package com.hrzn.spark.transformer;
+package com.hrznstudio.spark.transformer;
 
 import java.util.ArrayList;
 import java.util.Collection;

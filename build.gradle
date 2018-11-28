@@ -35,26 +35,28 @@ artifacts {
   archives javadocJar
 }
 
-publishing {
-  publications {
-    mavenJava(MavenPublication) {
-      groupId project.group
-      artifactId project.archivesBaseName
-      version project.version
+if (project.hasProperty('mavenUsername')) {
+  publishing {
+    publications {
+      mavenJava(MavenPublication) {
+        groupId project.group
+        artifactId project.archivesBaseName
+        version project.version
 
-      from components.java
+        from components.java
 
-      artifact sourceJar { classifier "sources" }
-      artifact javadocJar { classifier "javadoc" }
-    }
-  }
-  repositories {
-    maven {
-      credentials {
-        username project.mavenUsername ?: ""
-        password project.mavenPassword ?: ""
+        artifact sourceJar { classifier "sources" }
+        artifact javadocJar { classifier "javadoc" }
       }
-      url project.mavenUrl ?: ""
+    }
+    repositories {
+      maven {
+        credentials {
+          username project.mavenUsername ?: ""
+          password project.mavenPassword ?: ""
+        }
+        url project.mavenUrl ?: ""
+      }
     }
   }
 }

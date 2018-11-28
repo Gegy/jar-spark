@@ -1,7 +1,7 @@
-package com.hrzn.spark;
+package com.hrznstudio.spark;
 
-import com.hrzn.spark.natives.NativeExtractor;
-import com.hrzn.spark.plugin.ISparkPlugin;
+import com.hrznstudio.spark.natives.NativeExtractor;
+import com.hrznstudio.spark.plugin.ISparkPlugin;
 
 import java.io.File;
 import java.io.IOException;

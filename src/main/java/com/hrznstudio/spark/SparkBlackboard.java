@@ -1,4 +1,4 @@
-package com.hrzn.spark;
+package com.hrznstudio.spark;
 
 import java.util.HashMap;
 import java.util.Map;

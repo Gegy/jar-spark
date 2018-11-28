@@ -1,7 +1,7 @@
-package com.hrzn.spark.loader;
+package com.hrznstudio.spark.loader;
 
-import com.hrzn.spark.transformer.IByteTransformer;
-import com.hrzn.spark.SparkLauncher;
+import com.hrznstudio.spark.transformer.IByteTransformer;
+import com.hrznstudio.spark.SparkLauncher;
 
 import java.io.DataInputStream;
 import java.io.IOException;

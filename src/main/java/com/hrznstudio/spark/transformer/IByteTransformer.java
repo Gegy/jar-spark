@@ -1,4 +1,4 @@
-package com.hrzn.spark.transformer;
+package com.hrznstudio.spark.transformer;
 
 /**
  * A bytecode transformer acting on raw class bytes

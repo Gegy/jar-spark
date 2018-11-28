@@ -1,8 +1,8 @@
-package com.hrzn.spark.plugin;
+package com.hrznstudio.spark.plugin;
 
-import com.hrzn.spark.BootstrapConfig;
-import com.hrzn.spark.loader.TransformingClassLoader;
-import com.hrzn.spark.transformer.TransformerRoster;
+import com.hrznstudio.spark.BootstrapConfig;
+import com.hrznstudio.spark.loader.TransformingClassLoader;
+import com.hrznstudio.spark.transformer.TransformerRoster;
 
 /**
  * A plugin to be loaded before game startup, allowing for bytecode transformers to be registered

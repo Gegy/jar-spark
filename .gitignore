@@ -1,17 +1,17 @@
 # Gradle
 
-.gradle/
-build/
+/.gradle/
+/build/
 
 # IDEA
 
-.idea/
-out/
+/.idea/
+/out/
 *.iml
 
 # Run
 
 *.dat
-plugins/
-natives/
-.mixin.out/
+/plugins/
+/natives/
+/.mixin.out/

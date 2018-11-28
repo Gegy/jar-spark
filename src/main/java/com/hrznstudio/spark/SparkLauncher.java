@@ -1,7 +1,7 @@
-package com.hrzn.spark;
+package com.hrznstudio.spark;
 
-import com.hrzn.spark.loader.TransformingClassLoader;
-import com.hrzn.spark.transformer.TransformerRoster;
+import com.hrznstudio.spark.loader.TransformingClassLoader;
+import com.hrznstudio.spark.transformer.TransformerRoster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
