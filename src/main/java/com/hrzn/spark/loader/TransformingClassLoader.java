@@ -158,6 +158,7 @@ public class TransformingClassLoader extends URLClassLoader {
 
     @Override
     public void addURL(URL url) {
+        SparkLauncher.LOGGER.debug("Adding {} to classpath", url);
         super.addURL(url);
     }
 

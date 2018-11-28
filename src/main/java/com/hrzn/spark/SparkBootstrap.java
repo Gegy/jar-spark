@@ -39,6 +39,8 @@ public class SparkBootstrap {
     public void launch() throws Throwable {
         Thread.currentThread().setContextClassLoader(SparkLauncher.CLASS_LOADER);
 
+        SparkLauncher.LOGGER.info("Extracting natives from jar");
+
         this.clearNatives();
         try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
             nativeExtractor.extractTo(this.config.getNativeDir());
@@ -53,6 +55,7 @@ public class SparkBootstrap {
 
         try {
             this.plugins.addAll(this.loadPlugins());
+            SparkLauncher.LOGGER.info("Loaded {} bootstrap plugins", this.plugins.size());
 
             this.plugins.forEach(p -> p.acceptConfig(this.config));
             this.plugins.forEach(p -> p.acceptClassloader(SparkLauncher.CLASS_LOADER));
@@ -61,6 +64,7 @@ public class SparkBootstrap {
             SparkLauncher.LOGGER.error("An exception occurred while initializing plugins", t);
         }
 
+        SparkLauncher.LOGGER.debug("Injecting natives");
         LibraryInjector.inject(this.config.getNativeDir());
 
         // Invoke the given main class with any given arguments
@@ -70,6 +74,7 @@ public class SparkBootstrap {
 
         this.plugins.forEach(p -> p.launch(arguments));
 
+        SparkLauncher.LOGGER.info("Invoking '{}' with arguments: {}", mainClass.getName(), arguments);
         Method main = mainClass.getDeclaredMethod("main", String[].class);
         main.invoke(null, new Object[] { arguments });
     }
@@ -100,6 +105,7 @@ public class SparkBootstrap {
         // TODO: should plugins be loaded on the same classloader as the game?
         Path pluginRoot = SparkLauncher.LAUNCH_DIR.resolve("plugins");
         try {
+            SparkLauncher.LOGGER.debug("Loading plugins onto classpath");
             this.loadPluginsToClasspath(pluginRoot);
         } catch (IOException e) {
             SparkLauncher.LOGGER.error("Failed to load plugins onto classpath", e);
@@ -120,7 +126,9 @@ public class SparkBootstrap {
         Iterator<ISparkPlugin> iterator = loader.iterator();
         while (iterator.hasNext()) {
             try {
-                plugins.add(iterator.next());
+                ISparkPlugin plugin = iterator.next();
+                plugins.add(plugin);
+                SparkLauncher.LOGGER.debug("Detected plugin '{}'", plugin.getClass().getName());
             } catch (Throwable t) {
                 SparkLauncher.LOGGER.error("Failed to load plugin onto classpath", t);
             }
