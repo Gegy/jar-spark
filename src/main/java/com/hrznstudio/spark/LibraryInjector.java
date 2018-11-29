@@ -1,5 +1,8 @@
 package com.hrznstudio.spark;
 
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
+
 import java.io.File;
 import java.lang.reflect.Field;
 import java.nio.file.Path;
@@ -9,6 +12,7 @@ import java.nio.file.Path;
  */
 public class LibraryInjector {
     private static final String LIBRARY_PATH_ENV = "java.library.path";
+    private static final Logger LOGGER = LogManager.getLogger("Spark");
 
     /**
      * Injects the given path as a library into the environment
@@ -33,7 +37,7 @@ public class LibraryInjector {
             sysPaths.setAccessible(true);
             sysPaths.set(null, null);
         } catch (ReflectiveOperationException e) {
-            SparkLauncher.LOGGER.error("Failed to invalidate library path", e);
+            LOGGER.error("Failed to invalidate library path", e);
         }
     }
 }

@@ -6,6 +6,8 @@ import java.util.Collections;
 import java.util.List;
 
 public class TransformerRoster {
+    public static final TransformerRoster INSTANCE = new TransformerRoster();
+
     private final List<IByteTransformer> transformers = new ArrayList<>();
 
     public void volunteer(IByteTransformer transformer) {

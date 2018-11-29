@@ -1,10 +1,9 @@
 package com.hrznstudio.spark;
 
+import com.hrznstudio.spark.loader.MutableClassLoader;
 import com.hrznstudio.spark.loader.TransformingClassLoader;
-import com.hrznstudio.spark.transformer.TransformerRoster;
-import org.apache.logging.log4j.LogManager;
-import org.apache.logging.log4j.Logger;
 
+import java.net.URL;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
@@ -17,13 +16,13 @@ import java.nio.file.Paths;
  */
 public class SparkLauncher {
     public static final TransformingClassLoader CLASS_LOADER = new TransformingClassLoader(SparkLauncher.class.getClassLoader());
-    public static final TransformerRoster ROSTER = new TransformerRoster();
+    public static final MutableClassLoader PLUGIN_CLASS_LOADER = new MutableClassLoader(new URL[0], SparkLauncher.class.getClassLoader());
 
     public static final Path LAUNCH_DIR = Paths.get("");
 
-    public static final Logger LOGGER = LogManager.getLogger("Spark");
-
     public static void main(String[] args) throws Throwable {
+        Thread.currentThread().setContextClassLoader(SparkLauncher.CLASS_LOADER);
+
         BootstrapConfig config = BootstrapConfig.parse(args);
         SparkBootstrap bootstrap = new SparkBootstrap(config);
 

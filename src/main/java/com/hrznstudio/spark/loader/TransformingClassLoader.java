@@ -1,7 +1,9 @@
 package com.hrznstudio.spark.loader;
 
 import com.hrznstudio.spark.transformer.IByteTransformer;
-import com.hrznstudio.spark.SparkLauncher;
+import com.hrznstudio.spark.transformer.TransformerRoster;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.DataInputStream;
 import java.io.IOException;
@@ -9,9 +11,9 @@ import java.net.JarURLConnection;
 import java.net.URL;
 import java.net.URLClassLoader;
 import java.net.URLConnection;
-import java.nio.file.Path;
 import java.security.CodeSigner;
 import java.security.CodeSource;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
@@ -22,8 +24,18 @@ import java.util.jar.JarFile;
 import java.util.jar.Manifest;
 
 // TODO: review unused utils
-// TODO: default exclusions
-public class TransformingClassLoader extends URLClassLoader {
+// TODO: equilinox plugin that adds other exemptions
+public class TransformingClassLoader extends MutableClassLoader {
+    private static final Logger LOGGER = LogManager.getLogger("TransformingClassLoader");
+    private static final String[] LOAD_EXEMPTIONS = new String[] {
+            "java.",
+            "javax.",
+            "sun.",
+            "org.apache.logging.",
+            "com.google.common.",
+            "com.hrznstudio.spark."
+    };
+
     private final Map<String, Throwable> invalidClasses = new ConcurrentHashMap<>();
     private final Map<String, Class<?>> loadedClasses = new ConcurrentHashMap<>();
 
@@ -31,7 +43,12 @@ public class TransformingClassLoader extends URLClassLoader {
     private final Set<String> transformExemptions = new HashSet<>();
 
     public TransformingClassLoader(ClassLoader parent) {
-        super(new URL[0], parent);
+        super(getUrls(parent), null);
+        Arrays.stream(LOAD_EXEMPTIONS).forEach(this::addLoadExemption);
+    }
+
+    private static URL[] getUrls(ClassLoader loader) {
+        return loader instanceof URLClassLoader ? ((URLClassLoader) loader).getURLs() : new URL[0];
     }
 
     @Override
@@ -66,13 +83,16 @@ public class TransformingClassLoader extends URLClassLoader {
     private Class<?> readClass(String name) throws Throwable {
         URLConnection connection = this.openClassConnection(name);
         JarContext context = this.getJarContext(name, connection);
+
+        byte[] bytes = this.readClassBytes(connection);
+        byte[] transformedBytes = this.transformClass(name, bytes);
+
         if (context == null) {
-            throw new ClassNotFoundException("Could not get jar context for class " + name);
+            return this.defineClass(name, transformedBytes, 0, transformedBytes.length);
         }
 
         CodeSource source = context.buildSource();
         Manifest manifest = context.manifest;
-
         int lastPackageSplit = name.lastIndexOf('.');
         if (lastPackageSplit != -1) {
             String packageName = name.substring(0, lastPackageSplit);
@@ -80,9 +100,6 @@ public class TransformingClassLoader extends URLClassLoader {
                 this.definePackage(packageName, manifest, context.jarUrl);
             }
         }
-
-        byte[] bytes = this.readClassBytes(connection);
-        byte[] transformedBytes = this.transformClass(name, bytes);
         return this.defineClass(name, transformedBytes, 0, transformedBytes.length, source);
     }
 
@@ -102,7 +119,7 @@ public class TransformingClassLoader extends URLClassLoader {
             return input;
         }
 
-        Collection<IByteTransformer> transformers = SparkLauncher.ROSTER.getTransformers();
+        Collection<IByteTransformer> transformers = TransformerRoster.INSTANCE.getTransformers();
 
         byte[] bytes = input;
         for (IByteTransformer transformer : transformers) {
@@ -133,7 +150,7 @@ public class TransformingClassLoader extends URLClassLoader {
         String path = toPath(name);
         URL resource = this.findResource(path);
         if (resource == null) {
-            return null;
+            throw new IOException("Could not find resource for " + name);
         }
         return resource.openConnection();
     }
@@ -146,7 +163,7 @@ public class TransformingClassLoader extends URLClassLoader {
                 JarEntry entry = jar.getJarEntry(toPath(name));
                 return new JarContext(jarConnection.getJarFileURL(), entry.getCodeSigners(), jar.getManifest());
             } catch (IOException e) {
-                SparkLauncher.LOGGER.error("Failed to load jar context for {}", name, e);
+                LOGGER.error("Failed to load jar context for {}", name, e);
             }
         }
         return null;
@@ -154,16 +171,6 @@ public class TransformingClassLoader extends URLClassLoader {
 
     private static String toPath(String name) {
         return name.replace('.', '/') + ".class";
-    }
-
-    @Override
-    public void addURL(URL url) {
-        SparkLauncher.LOGGER.debug("Adding {} to classpath", url);
-        super.addURL(url);
-    }
-
-    public void addJar(Path path) throws IOException {
-        this.addURL(path.toUri().toURL());
     }
 
     public void invalidate(String name, Throwable t) {

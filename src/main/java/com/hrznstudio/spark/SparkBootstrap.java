@@ -1,7 +1,11 @@
 package com.hrznstudio.spark;
 
+import com.hrznstudio.spark.loader.MutableClassLoader;
 import com.hrznstudio.spark.natives.NativeExtractor;
 import com.hrznstudio.spark.plugin.ISparkPlugin;
+import com.hrznstudio.spark.transformer.TransformerRoster;
+import org.apache.logging.log4j.LogManager;
+import org.apache.logging.log4j.Logger;
 
 import java.io.File;
 import java.io.IOException;
@@ -23,6 +27,9 @@ import java.util.jar.JarFile;
  */
 public class SparkBootstrap {
     private static final String MAIN_CLASS_ATTRIBUTE = "Main-Class";
+    private static final String SPARK_PLUGIN = "com.hrznstudio.spark.plugin.ISparkPlugin";
+
+    private static final Logger LOGGER = LogManager.getLogger("Spark");
 
     private final BootstrapConfig config;
     private final Collection<ISparkPlugin> plugins = new ArrayList<>();
@@ -37,15 +44,13 @@ public class SparkBootstrap {
      * @throws Throwable if the launch process failed
      */
     public void launch() throws Throwable {
-        Thread.currentThread().setContextClassLoader(SparkLauncher.CLASS_LOADER);
-
-        SparkLauncher.LOGGER.info("Extracting natives from jar");
+        LOGGER.info("Extracting natives from jar");
 
         this.clearNatives();
         try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
             nativeExtractor.extractTo(this.config.getNativeDir());
         } catch (IOException e) {
-            SparkLauncher.LOGGER.error("Failed to extract natives", e);
+            LOGGER.error("Failed to extract natives", e);
         }
 
         SparkBlackboard.CONFIG.set(this.config);
@@ -55,16 +60,16 @@ public class SparkBootstrap {
 
         try {
             this.plugins.addAll(this.loadPlugins());
-            SparkLauncher.LOGGER.info("Loaded {} bootstrap plugins", this.plugins.size());
+            LOGGER.info("Loaded {} bootstrap plugins", this.plugins.size());
 
             this.plugins.forEach(p -> p.acceptConfig(this.config));
             this.plugins.forEach(p -> p.acceptClassloader(SparkLauncher.CLASS_LOADER));
-            this.plugins.forEach(p -> p.volunteerTransformers(SparkLauncher.ROSTER));
+            this.plugins.forEach(p -> p.volunteerTransformers(TransformerRoster.INSTANCE));
         } catch (Throwable t) {
-            SparkLauncher.LOGGER.error("An exception occurred while initializing plugins", t);
+            LOGGER.error("Failed to initialize plugins", t);
         }
 
-        SparkLauncher.LOGGER.debug("Injecting natives");
+        LOGGER.debug("Injecting natives");
         LibraryInjector.inject(this.config.getNativeDir());
 
         // Invoke the given main class with any given arguments
@@ -74,7 +79,7 @@ public class SparkBootstrap {
 
         this.plugins.forEach(p -> p.launch(arguments));
 
-        SparkLauncher.LOGGER.info("Invoking '{}' with arguments: {}", mainClass.getName(), arguments);
+        LOGGER.info("Invoking '{}' with arguments: {}", mainClass.getName(), arguments);
         Method main = mainClass.getDeclaredMethod("main", String[].class);
         main.invoke(null, new Object[] { arguments });
     }
@@ -91,7 +96,7 @@ public class SparkBootstrap {
                         .map(Path::toFile)
                         .forEach(File::delete);
             } catch (Exception e) {
-                SparkLauncher.LOGGER.error("Failed to clear natives directory", e);
+                LOGGER.error("Failed to clear natives directory", e);
             }
         }
     }
@@ -101,14 +106,13 @@ public class SparkBootstrap {
      *
      * @return all loaded plugins from the classpath
      */
-    private Collection<ISparkPlugin> loadPlugins() {
-        // TODO: should plugins be loaded on the same classloader as the game?
+    private Collection<ISparkPlugin> loadPlugins() throws Throwable {
         Path pluginRoot = SparkLauncher.LAUNCH_DIR.resolve("plugins");
         try {
-            SparkLauncher.LOGGER.debug("Loading plugins onto classpath");
+            LOGGER.debug("Loading plugins onto classpath");
             this.loadPluginsToClasspath(pluginRoot);
         } catch (IOException e) {
-            SparkLauncher.LOGGER.error("Failed to load plugins onto classpath", e);
+            LOGGER.error("Failed to load plugins onto classpath", e);
         }
 
         return this.collectPlugins();
@@ -119,18 +123,22 @@ public class SparkBootstrap {
      *
      * @return a collection of collected plugins
      */
-    private Collection<ISparkPlugin> collectPlugins() {
+    @SuppressWarnings("unchecked")
+    private Collection<ISparkPlugin> collectPlugins() throws Throwable {
         Collection<ISparkPlugin> plugins = new ArrayList<>();
 
-        ServiceLoader<ISparkPlugin> loader = ServiceLoader.load(ISparkPlugin.class, SparkLauncher.CLASS_LOADER);
+        MutableClassLoader classLoader = SparkLauncher.PLUGIN_CLASS_LOADER;
+        Class<ISparkPlugin> serviceClass = (Class<ISparkPlugin>) Class.forName(SPARK_PLUGIN, false, classLoader);
+
+        ServiceLoader<ISparkPlugin> loader = ServiceLoader.load(serviceClass, classLoader);
         Iterator<ISparkPlugin> iterator = loader.iterator();
         while (iterator.hasNext()) {
             try {
                 ISparkPlugin plugin = iterator.next();
                 plugins.add(plugin);
-                SparkLauncher.LOGGER.debug("Detected plugin '{}'", plugin.getClass().getName());
+                LOGGER.debug("Detected plugin '{}'", plugin.getClass().getName());
             } catch (Throwable t) {
-                SparkLauncher.LOGGER.error("Failed to load plugin onto classpath", t);
+                LOGGER.error("Failed to load plugin onto classpath", t);
             }
         }
 
@@ -152,7 +160,7 @@ public class SparkBootstrap {
                 if (Files.isDirectory(plugin) || !plugin.toString().endsWith(".jar")) {
                     continue;
                 }
-                SparkLauncher.CLASS_LOADER.addJar(plugin);
+                SparkLauncher.PLUGIN_CLASS_LOADER.addJar(plugin);
             }
         }
     }
@@ -191,7 +199,7 @@ public class SparkBootstrap {
                 return attributes.getValue(MAIN_CLASS_ATTRIBUTE);
             }
         } catch (IOException e) {
-            SparkLauncher.LOGGER.error("Failed to locate main class for {}", jarFile, e);
+            LOGGER.error("Failed to locate main class for {}", jarFile, e);
         }
         return null;
     }
