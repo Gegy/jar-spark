@@ -1,4 +1,4 @@
-package com.hrznstudio.spark.natives;
+package com.hrznstudio.spark.dependency;
 
 import java.io.IOException;
 import java.nio.file.Path;
@@ -11,36 +11,36 @@ import java.util.function.Predicate;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class NativeCollector implements Iterable<PackagedNative>, AutoCloseable {
+public class DependencyCollector implements Iterable<PackagedDependency>, AutoCloseable {
     private final JarFile jarFile;
-    private final Collection<PackagedNative> entries;
+    private final Collection<PackagedDependency> entries;
 
-    private NativeCollector(JarFile jarFile, Collection<PackagedNative> entries) {
+    private DependencyCollector(JarFile jarFile, Collection<PackagedDependency> entries) {
         this.jarFile = jarFile;
         this.entries = entries;
     }
 
-    public static NativeCollector open(Path jarPath) throws IOException {
-        Predicate<JarEntry> predicate = buildNativePredicate(System.getProperty("os.name"));
-        return NativeCollector.open(jarPath, predicate);
+    public static DependencyCollector open(Path jarPath) throws IOException {
+        Predicate<JarEntry> predicate = buildDependencyPredicate(System.getProperty("os.name"));
+        return DependencyCollector.open(jarPath, predicate);
     }
 
-    public static NativeCollector open(Path jarPath, Predicate<JarEntry> nativePredicate) throws IOException {
+    public static DependencyCollector open(Path jarPath, Predicate<JarEntry> nativePredicate) throws IOException {
         JarFile jarFile = new JarFile(jarPath.toFile());
         Enumeration<JarEntry> entries = jarFile.entries();
-        Collection<PackagedNative> nativeEntries = new ArrayList<>();
+        Collection<PackagedDependency> nativeEntries = new ArrayList<>();
 
         while (entries.hasMoreElements()) {
             JarEntry entry = entries.nextElement();
             if (nativePredicate.test(entry)) {
-                nativeEntries.add(new PackagedNative(jarFile, entry));
+                nativeEntries.add(new PackagedDependency(jarFile, entry));
             }
         }
 
-        return new NativeCollector(jarFile, nativeEntries);
+        return new DependencyCollector(jarFile, nativeEntries);
     }
 
-    public static Predicate<JarEntry> buildNativePredicate(String os) {
+    public static Predicate<JarEntry> buildDependencyPredicate(String os) {
         String osNormalized = os.toLowerCase(Locale.ROOT);
 
         boolean windows = osNormalized.startsWith("win");
@@ -53,14 +53,15 @@ public class NativeCollector implements Iterable<PackagedNative>, AutoCloseable 
             }
 
             String name = entry.getName();
-            return windows && name.endsWith(".dll")
+            return name.endsWith(".jar")
+                    || windows && name.endsWith(".dll")
                     || (linux && name.endsWith(".so"))
                     || mac && (name.endsWith(".dylib") || name.endsWith(".jnilib"));
         };
     }
 
     @Override
-    public Iterator<PackagedNative> iterator() {
+    public Iterator<PackagedDependency> iterator() {
         return this.entries.iterator();
     }
 

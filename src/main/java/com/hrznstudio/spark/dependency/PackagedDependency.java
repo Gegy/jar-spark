@@ -1,15 +1,15 @@
-package com.hrznstudio.spark.natives;
+package com.hrznstudio.spark.dependency;
 
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.jar.JarEntry;
 import java.util.jar.JarFile;
 
-public class PackagedNative {
+public class PackagedDependency {
     private final JarFile jarFile;
     private final JarEntry entry;
 
-    public PackagedNative(JarFile jarFile, JarEntry entry) {
+    public PackagedDependency(JarFile jarFile, JarEntry entry) {
         this.jarFile = jarFile;
         this.entry = entry;
     }

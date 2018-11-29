@@ -1,7 +1,7 @@
 package com.hrznstudio.spark;
 
 import com.hrznstudio.spark.loader.MutableClassLoader;
-import com.hrznstudio.spark.natives.NativeExtractor;
+import com.hrznstudio.spark.dependency.DependencyExtractor;
 import com.hrznstudio.spark.plugin.ISparkPlugin;
 import com.hrznstudio.spark.transformer.TransformerRoster;
 import org.apache.logging.log4j.LogManager;
@@ -44,19 +44,21 @@ public class SparkBootstrap {
      * @throws Throwable if the launch process failed
      */
     public void launch() throws Throwable {
-        LOGGER.info("Extracting natives from jar");
+        LOGGER.info("Extracting dependencies from jar");
 
-        this.clearNatives();
-        try (NativeExtractor nativeExtractor = NativeExtractor.open(this.config.getLaunchJar())) {
-            nativeExtractor.extractTo(this.config.getNativeDir());
+        this.clearDependencies();
+        try (DependencyExtractor dependencyExtractor = DependencyExtractor.open(this.config.getLaunchJar())) {
+            dependencyExtractor.extractTo(this.config.getDependencyDir());
         } catch (IOException e) {
-            LOGGER.error("Failed to extract natives", e);
+            LOGGER.error("Failed to extract dependencies", e);
         }
 
         SparkBlackboard.CONFIG.set(this.config);
 
         // Add the launch jar so that our classloader can load classes from it
         SparkLauncher.CLASS_LOADER.addJar(this.config.getLaunchJar());
+
+        this.injectDependencies();
 
         try {
             this.plugins.addAll(this.loadPlugins());
@@ -68,9 +70,6 @@ public class SparkBootstrap {
         } catch (Throwable t) {
             LOGGER.error("Failed to initialize plugins", t);
         }
-
-        LOGGER.debug("Injecting natives");
-        LibraryInjector.inject(this.config.getNativeDir());
 
         // Invoke the given main class with any given arguments
 
@@ -85,20 +84,35 @@ public class SparkBootstrap {
     }
 
     /**
-     * Clears out all files in the natives directory
+     * Clears out all files in the dependencies directory
      */
-    private void clearNatives() {
-        Path nativeDir = this.config.getNativeDir();
-        if (Files.exists(nativeDir)) {
+    private void clearDependencies() {
+        Path dependencyDir = this.config.getDependencyDir();
+        if (Files.exists(dependencyDir)) {
             try {
-                Files.walk(nativeDir)
+                Files.walk(dependencyDir)
                         .sorted(Comparator.reverseOrder())
                         .map(Path::toFile)
                         .forEach(File::delete);
             } catch (Exception e) {
-                LOGGER.error("Failed to clear natives directory", e);
+                LOGGER.error("Failed to clear dependency directory", e);
             }
         }
+    }
+
+    private void injectDependencies() throws IOException {
+        LOGGER.debug("Injecting jar dependencies");
+        try (DirectoryStream<Path> stream = Files.newDirectoryStream(this.config.getDependencyDir())) {
+            for (Path dependency : stream) {
+                if (Files.isDirectory(dependency) || !dependency.toString().endsWith(".jar")) {
+                    continue;
+                }
+                SparkLauncher.CLASS_LOADER.addJar(dependency);
+            }
+        }
+
+        LOGGER.debug("Injecting natives");
+        LibraryInjector.inject(this.config.getDependencyDir());
     }
 
     /**

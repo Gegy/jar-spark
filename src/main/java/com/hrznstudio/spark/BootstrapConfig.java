@@ -17,20 +17,20 @@ import java.util.List;
 public class BootstrapConfig {
     private final OptionSet optionSet;
     private final OptionSpec<Path> launchJar;
-    private final OptionSpec<Path> nativeDir;
+    private final OptionSpec<Path> dependencyDir;
     private final OptionSpec<String> mainClass;
     private final OptionSpec<String> nonOption;
 
     private BootstrapConfig(
             OptionSet optionSet,
             OptionSpec<Path> launchJar,
-            OptionSpec<Path> nativeDir,
+            OptionSpec<Path> dependencyDir,
             OptionSpec<String> mainClass,
             OptionSpec<String> nonOption
     ) {
         this.optionSet = optionSet;
         this.launchJar = launchJar;
-        this.nativeDir = nativeDir;
+        this.dependencyDir = dependencyDir;
         this.mainClass = mainClass;
         this.nonOption = nonOption;
     }
@@ -49,7 +49,7 @@ public class BootstrapConfig {
                 .withOptionalArg()
                 .withValuesConvertedBy(new PathConverter(PathProperties.FILE_EXISTING));
 
-        OptionSpec<Path> nativeDir = parser.accepts("nativeDir", "The directory for natives to be extracted to")
+        OptionSpec<Path> nativeDir = parser.accepts("dependencyDir", "The directory for dependencies to be extracted to")
                 .withOptionalArg()
                 .withValuesConvertedBy(new PathConverter(PathProperties.DIRECTORY_EXISTING));
 
@@ -83,19 +83,19 @@ public class BootstrapConfig {
     }
 
     /**
-     * Extracts the native directory from this config. The native directory will hold all natives extracted from the
-     * launch jar at startup.
+     * Extracts the dependency directory from this config. The dependency directory will hold all dependencies extracted
+     * from the launch jar at startup.
      *
-     * If no native directory is specified, this will default to /natives
+     * If no dependency directory is specified, this will default to /dependencies
      *
-     * @return the native directory
+     * @return the dependency directory
      */
-    public Path getNativeDir() {
-        Path natives = this.nativeDir.value(this.optionSet);
-        if (natives == null) {
-            return SparkLauncher.LAUNCH_DIR.resolve("natives");
+    public Path getDependencyDir() {
+        Path dependencies = this.dependencyDir.value(this.optionSet);
+        if (dependencies == null) {
+            return SparkLauncher.LAUNCH_DIR.resolve("dependencies");
         }
-        return natives;
+        return dependencies;
     }
 
     /**
