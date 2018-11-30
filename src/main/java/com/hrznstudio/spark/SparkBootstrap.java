@@ -1,6 +1,5 @@
 package com.hrznstudio.spark;
 
-import com.hrznstudio.spark.loader.MutableClassLoader;
 import com.hrznstudio.spark.dependency.DependencyExtractor;
 import com.hrznstudio.spark.plugin.ISparkPlugin;
 import com.hrznstudio.spark.transformer.TransformerRoster;
@@ -10,6 +9,8 @@ import org.apache.logging.log4j.Logger;
 import java.io.File;
 import java.io.IOException;
 import java.lang.reflect.Method;
+import java.net.URL;
+import java.net.URLClassLoader;
 import java.nio.file.DirectoryStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -27,7 +28,6 @@ import java.util.jar.JarFile;
  */
 public class SparkBootstrap {
     private static final String MAIN_CLASS_ATTRIBUTE = "Main-Class";
-    private static final String SPARK_PLUGIN = "com.hrznstudio.spark.plugin.ISparkPlugin";
 
     private static final Logger LOGGER = LogManager.getLogger("Spark");
 
@@ -120,31 +120,31 @@ public class SparkBootstrap {
      *
      * @return all loaded plugins from the classpath
      */
-    private Collection<ISparkPlugin> loadPlugins() throws Throwable {
+    private Collection<ISparkPlugin> loadPlugins() {
         Path pluginRoot = SparkLauncher.LAUNCH_DIR.resolve("plugins");
-        try {
-            LOGGER.debug("Loading plugins onto classpath");
-            this.loadPluginsToClasspath(pluginRoot);
-        } catch (IOException e) {
-            LOGGER.error("Failed to load plugins onto classpath", e);
-        }
-
-        return this.collectPlugins();
-    }
-
-    /**
-     * Collects all plugins from the classpath using a ServiceLoader.
-     *
-     * @return a collection of collected plugins
-     */
-    @SuppressWarnings("unchecked")
-    private Collection<ISparkPlugin> collectPlugins() throws Throwable {
         Collection<ISparkPlugin> plugins = new ArrayList<>();
 
-        MutableClassLoader classLoader = SparkLauncher.PLUGIN_CLASS_LOADER;
-        Class<ISparkPlugin> serviceClass = (Class<ISparkPlugin>) Class.forName(SPARK_PLUGIN, false, classLoader);
+        try {
+            Collection<URL> pluginJars = this.collectPluginJars(pluginRoot);
+            for (URL pluginUrl : pluginJars) {
+                ClassLoader classLoader = new URLClassLoader(new URL[] { pluginUrl }, this.getClass().getClassLoader());
+                plugins.addAll(this.collectPlugins(classLoader));
+            }
+        } catch (IOException e) {
+            LOGGER.error("Failed to load plugins from files", e);
+        }
 
-        ServiceLoader<ISparkPlugin> loader = ServiceLoader.load(serviceClass, classLoader);
+        // If we are in a plugin dev env, we want to find plugins on the launch classpath
+        plugins.addAll(this.collectPlugins(this.getClass().getClassLoader()));
+
+        return plugins;
+    }
+
+    @SuppressWarnings("unchecked")
+    private Collection<ISparkPlugin> collectPlugins(ClassLoader classLoader) {
+        Collection<ISparkPlugin> plugins = new ArrayList<>();
+
+        ServiceLoader<ISparkPlugin> loader = ServiceLoader.load(ISparkPlugin.class, classLoader);
         Iterator<ISparkPlugin> iterator = loader.iterator();
         while (iterator.hasNext()) {
             try {
@@ -159,24 +159,22 @@ public class SparkBootstrap {
         return plugins;
     }
 
-    /**
-     * Loads all plugins from the given root onto the classpath.
-     *
-     * @param pluginRoot the root directory to scan for plugins
-     * @throws IOException if an IO exception occurs while loading plugins
-     */
-    private void loadPluginsToClasspath(Path pluginRoot) throws IOException {
+    private Collection<URL> collectPluginJars(Path pluginRoot) throws IOException {
         if (!Files.exists(pluginRoot)) {
             Files.createDirectory(pluginRoot);
         }
+
+        Collection<URL> pluginJars = new ArrayList<>();
         try (DirectoryStream<Path> stream = Files.newDirectoryStream(pluginRoot)) {
             for (Path plugin : stream) {
                 if (Files.isDirectory(plugin) || !plugin.toString().endsWith(".jar")) {
                     continue;
                 }
-                SparkLauncher.PLUGIN_CLASS_LOADER.addJar(plugin);
+                pluginJars.add(plugin.toUri().toURL());
             }
         }
+
+        return pluginJars;
     }
 
     /**
