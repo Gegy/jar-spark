@@ -1,7 +1,7 @@
 package com.hrznstudio.spark.loader;
 
-import com.hrznstudio.spark.transformer.IByteTransformer;
-import com.hrznstudio.spark.transformer.TransformerRoster;
+import com.hrznstudio.spark.patch.IPatchContext;
+import com.hrznstudio.spark.patch.PatcherRoster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -14,7 +14,6 @@ import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.Arrays;
-import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -25,7 +24,7 @@ import java.util.jar.Manifest;
 
 // TODO: review unused utils
 // TODO: equilinox plugin that adds other exemptions
-public class TransformingClassLoader extends MutableClassLoader {
+public class TransformingClassLoader extends MutableClassLoader implements IPatchContext {
     private static final Logger LOGGER = LogManager.getLogger("TransformingClassLoader");
     private static final String[] LOAD_EXEMPTIONS = new String[] {
             "java.",
@@ -119,23 +118,32 @@ public class TransformingClassLoader extends MutableClassLoader {
             return input;
         }
 
-        Collection<IByteTransformer> transformers = TransformerRoster.INSTANCE.getTransformers();
-
-        byte[] bytes = input;
-        for (IByteTransformer transformer : transformers) {
-            bytes = transformer.transform(target, bytes);
-        }
-
-        return bytes;
+        return PatcherRoster.INSTANCE.apply(target, input);
     }
 
-    public byte[] readClassBytes(String name) throws IOException {
+    @Override
+    public byte[] readRawBytes(String name) throws IOException {
         // TODO: cache?
         URLConnection connection = this.openClassConnection(name);
         if (connection == null) {
             return null;
         }
         return this.readClassBytes(connection);
+    }
+
+    @Override
+    public byte[] readClasspathBytes(String name) throws IOException {
+        URL resource = this.getParent().getResource(toPath(name));
+        if (resource == null) {
+            return null;
+        }
+
+        URLConnection connection = resource.openConnection();
+        try (DataInputStream input = new DataInputStream(connection.getInputStream())) {
+            byte[] bytes = new byte[connection.getContentLength()];
+            input.readFully(bytes);
+            return bytes;
+        }
     }
 
     private byte[] readClassBytes(URLConnection connection) throws IOException {
@@ -169,10 +177,6 @@ public class TransformingClassLoader extends MutableClassLoader {
         return null;
     }
 
-    private static String toPath(String name) {
-        return name.replace('.', '/') + ".class";
-    }
-
     public void invalidate(String name, Throwable t) {
         this.invalidClasses.put(name, t);
     }
@@ -199,6 +203,10 @@ public class TransformingClassLoader extends MutableClassLoader {
 
     public boolean isInvalid(String name) {
         return this.invalidClasses.containsKey(name);
+    }
+
+    private static String toPath(String name) {
+        return name.replace('.', '/') + ".class";
     }
 
     private static class JarContext {

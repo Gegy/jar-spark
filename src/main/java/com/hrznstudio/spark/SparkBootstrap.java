@@ -1,8 +1,11 @@
 package com.hrznstudio.spark;
 
 import com.hrznstudio.spark.dependency.DependencyExtractor;
-import com.hrznstudio.spark.plugin.ISparkPlugin;
-import com.hrznstudio.spark.transformer.TransformerRoster;
+import com.hrznstudio.spark.patch.IBytePatcher;
+import com.hrznstudio.spark.patch.IPatchPlugin;
+import com.hrznstudio.spark.patch.PatchBlackboard;
+import com.hrznstudio.spark.patch.PatcherRoster;
+import com.hrznstudio.spark.plugin.ILaunchPlugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -32,7 +35,8 @@ public class SparkBootstrap {
     private static final Logger LOGGER = LogManager.getLogger("Spark");
 
     private final BootstrapConfig config;
-    private final Collection<ISparkPlugin> plugins = new ArrayList<>();
+    private final Collection<ILaunchPlugin> launchPlugins = new ArrayList<>();
+    private final Collection<IPatchPlugin> patchPlugins = new ArrayList<>();
 
     public SparkBootstrap(BootstrapConfig config) {
         this.config = config;
@@ -44,43 +48,61 @@ public class SparkBootstrap {
      * @throws Throwable if the launch process failed
      */
     public void launch() throws Throwable {
-        LOGGER.info("Extracting dependencies from jar");
-
-        this.clearDependencies();
-        try (DependencyExtractor dependencyExtractor = DependencyExtractor.open(this.config.getLaunchJar())) {
-            dependencyExtractor.extractTo(this.config.getDependencyDir());
-        } catch (IOException e) {
-            LOGGER.error("Failed to extract dependencies", e);
-        }
-
-        SparkBlackboard.CONFIG.set(this.config);
-
-        // Add the launch jar so that our classloader can load classes from it
-        SparkLauncher.CLASS_LOADER.addJar(this.config.getLaunchJar());
-
-        this.injectDependencies();
-
         try {
-            this.plugins.addAll(this.loadPlugins());
-            LOGGER.info("Loaded {} bootstrap plugins", this.plugins.size());
+            PatchBlackboard.CONTEXT.set(SparkLauncher.CLASS_LOADER);
 
-            this.plugins.forEach(p -> p.acceptConfig(this.config));
-            this.plugins.forEach(p -> p.acceptClassloader(SparkLauncher.CLASS_LOADER));
-            this.plugins.forEach(p -> p.volunteerTransformers(TransformerRoster.INSTANCE));
-        } catch (Throwable t) {
-            LOGGER.error("Failed to initialize plugins", t);
+            LOGGER.info("Extracting dependencies from jar");
+
+            this.clearDependencies();
+            try (DependencyExtractor dependencyExtractor = DependencyExtractor.open(this.config.getLaunchJar())) {
+                dependencyExtractor.extractTo(this.config.getDependencyDir());
+            } catch (IOException e) {
+                LOGGER.error("Failed to extract dependencies", e);
+            }
+
+            PatchBlackboard.key("config").set(this.config);
+
+            // Add the launch jar so that our classloader can load classes from it
+            SparkLauncher.CLASS_LOADER.addJar(this.config.getLaunchJar());
+
+            this.injectDependencies();
+
+            try {
+                Collection<ClassLoader> pluginClassLoaders = this.loadPlugins();
+
+                this.launchPlugins.addAll(this.collectLaunchPlugins(pluginClassLoaders));
+                this.patchPlugins.addAll(this.collectPatchPlugins(pluginClassLoaders));
+
+                LOGGER.info("Loaded {} launch plugins", this.launchPlugins.size());
+                LOGGER.info("Loaded {} patch plugins", this.patchPlugins.size());
+
+                this.launchPlugins.forEach(p -> p.acceptConfig(this.config));
+                this.launchPlugins.forEach(p -> p.acceptClassloader(SparkLauncher.CLASS_LOADER));
+
+                this.patchPlugins.forEach(IPatchPlugin::initialize);
+
+                for (IPatchPlugin plugin : this.patchPlugins) {
+                    for (IBytePatcher patcher : plugin.getPatchers()) {
+                        PatcherRoster.INSTANCE.volunteer(patcher);
+                    }
+                }
+            } catch (Throwable t) {
+                LOGGER.error("Failed to initialize plugins", t);
+            }
+
+            // Invoke the given main class with any given arguments
+
+            Class<?> mainClass = SparkLauncher.CLASS_LOADER.loadClass(this.computeMainClass());
+            String[] arguments = this.config.getNonOptions().toArray(new String[0]);
+
+            this.launchPlugins.forEach(p -> p.launch(arguments));
+
+            LOGGER.info("Invoking '{}' with arguments: {}", mainClass.getName(), arguments);
+            Method main = mainClass.getDeclaredMethod("main", String[].class);
+            main.invoke(null, new Object[] { arguments });
+        } finally {
+            PatchBlackboard.CONTEXT.remove();
         }
-
-        // Invoke the given main class with any given arguments
-
-        Class<?> mainClass = SparkLauncher.CLASS_LOADER.loadClass(this.computeMainClass());
-        String[] arguments = this.config.getNonOptions().toArray(new String[0]);
-
-        this.plugins.forEach(p -> p.launch(arguments));
-
-        LOGGER.info("Invoking '{}' with arguments: {}", mainClass.getName(), arguments);
-        Method main = mainClass.getDeclaredMethod("main", String[].class);
-        main.invoke(null, new Object[] { arguments });
     }
 
     /**
@@ -116,45 +138,68 @@ public class SparkBootstrap {
     }
 
     /**
-     * Loads plugins onto the classpath and then collects them
+     * Collects all launch plugins from the given plugin classloaders
      *
-     * @return all loaded plugins from the classpath
+     * @return all loaded launch plugins
      */
-    private Collection<ISparkPlugin> loadPlugins() {
+    private Collection<ILaunchPlugin> collectLaunchPlugins(Collection<ClassLoader> classLoaders) {
+        Collection<ILaunchPlugin> plugins = new ArrayList<>();
+        for (ClassLoader classLoader : classLoaders) {
+            ServiceLoader<ILaunchPlugin> loader = ServiceLoader.load(ILaunchPlugin.class, classLoader);
+            Iterator<ILaunchPlugin> iterator = loader.iterator();
+            while (iterator.hasNext()) {
+                try {
+                    ILaunchPlugin plugin = iterator.next();
+                    plugins.add(plugin);
+                    LOGGER.debug("Detected launch plugin '{}'", plugin.getClass().getName());
+                } catch (Throwable t) {
+                    LOGGER.error("Failed to load launch plugin onto classpath", t);
+                }
+            }
+        }
+
+        return plugins;
+    }
+
+    /**
+     * Collects all patch plugins from the given plugin classloaders
+     *
+     * @return all loaded patch plugins
+     */
+    private Collection<IPatchPlugin> collectPatchPlugins(Collection<ClassLoader> classLoaders) {
+        Collection<IPatchPlugin> plugins = new ArrayList<>();
+        for (ClassLoader classLoader : classLoaders) {
+            ServiceLoader<IPatchPlugin> loader = ServiceLoader.load(IPatchPlugin.class, classLoader);
+            Iterator<IPatchPlugin> iterator = loader.iterator();
+            while (iterator.hasNext()) {
+                try {
+                    IPatchPlugin plugin = iterator.next();
+                    plugins.add(plugin);
+                    LOGGER.debug("Detected patch plugin '{}'", plugin.getClass().getName());
+                } catch (Throwable t) {
+                    LOGGER.error("Failed to load patch plugin onto classpath", t);
+                }
+            }
+        }
+
+        return plugins;
+    }
+
+    private Collection<ClassLoader> loadPlugins() {
         Path pluginRoot = SparkLauncher.LAUNCH_DIR.resolve("plugins");
-        Collection<ISparkPlugin> plugins = new ArrayList<>();
+        Collection<ClassLoader> plugins = new ArrayList<>();
 
         try {
             Collection<URL> pluginJars = this.collectPluginJars(pluginRoot);
             for (URL pluginUrl : pluginJars) {
-                ClassLoader classLoader = new URLClassLoader(new URL[] { pluginUrl }, this.getClass().getClassLoader());
-                plugins.addAll(this.collectPlugins(classLoader));
+                plugins.add(new URLClassLoader(new URL[] { pluginUrl }, this.getClass().getClassLoader()));
             }
         } catch (IOException e) {
             LOGGER.error("Failed to load plugins from files", e);
         }
 
         // If we are in a plugin dev env, we want to find plugins on the launch classpath
-        plugins.addAll(this.collectPlugins(this.getClass().getClassLoader()));
-
-        return plugins;
-    }
-
-    @SuppressWarnings("unchecked")
-    private Collection<ISparkPlugin> collectPlugins(ClassLoader classLoader) {
-        Collection<ISparkPlugin> plugins = new ArrayList<>();
-
-        ServiceLoader<ISparkPlugin> loader = ServiceLoader.load(ISparkPlugin.class, classLoader);
-        Iterator<ISparkPlugin> iterator = loader.iterator();
-        while (iterator.hasNext()) {
-            try {
-                ISparkPlugin plugin = iterator.next();
-                plugins.add(plugin);
-                LOGGER.debug("Detected plugin '{}'", plugin.getClass().getName());
-            } catch (Throwable t) {
-                LOGGER.error("Failed to load plugin onto classpath", t);
-            }
-        }
+        plugins.add(this.getClass().getClassLoader());
 
         return plugins;
     }

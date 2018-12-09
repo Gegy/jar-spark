@@ -6,6 +6,7 @@ import java.nio.file.Path;
 import java.nio.file.Paths;
 
 // TODO: write documentation
+// TODO: cannot extract natives in dev-env when running from classpath
 
 /**
  * Entry-point to the spark launcher. This parses command line arguments into a config and sends it to the bootstrapper
