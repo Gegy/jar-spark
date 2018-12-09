@@ -16,7 +16,7 @@ repositories {
 }
 
 dependencies {
-  compile 'com.hrznstudio:spark-patch:0.1.3-SNAPSHOT'
+  compile 'com.hrznstudio:spark-patch:0.1.4-SNAPSHOT'
   compile 'org.apache.logging.log4j:log4j-core:2.5'
   compile 'net.sf.jopt-simple:jopt-simple:5.0.4'
 }

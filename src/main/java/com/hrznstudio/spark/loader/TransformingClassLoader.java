@@ -15,6 +15,7 @@ import java.net.URLConnection;
 import java.security.CodeSigner;
 import java.security.CodeSource;
 import java.util.Arrays;
+import java.util.Collection;
 import java.util.HashSet;
 import java.util.Map;
 import java.util.Set;
@@ -148,8 +149,8 @@ public class TransformingClassLoader extends MutableClassLoader implements IPatc
     }
 
     @Override
-    public IBytePatcher getPatcher() {
-        return PatcherRoster.INSTANCE;
+    public Collection<IBytePatcher> getPatchers() {
+        return PatcherRoster.INSTANCE.getPatchers();
     }
 
     private byte[] readClassBytes(URLConnection connection) throws IOException {
