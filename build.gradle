@@ -4,7 +4,7 @@ plugins {
 }
 
 group 'com.hrznstudio'
-version '0.1.13-SNAPSHOT'
+version '0.1.14-SNAPSHOT'
 archivesBaseName = project.name
 
 sourceCompatibility = targetCompatibility = 1.8

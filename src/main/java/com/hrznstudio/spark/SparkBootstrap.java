@@ -4,7 +4,6 @@ import com.hrznstudio.spark.dependency.DependencyExtractor;
 import com.hrznstudio.spark.patch.IBytePatcher;
 import com.hrznstudio.spark.patch.IPatchPlugin;
 import com.hrznstudio.spark.patch.PatchBlackboard;
-import com.hrznstudio.spark.patch.PatcherRoster;
 import com.hrznstudio.spark.plugin.ILaunchPlugin;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;

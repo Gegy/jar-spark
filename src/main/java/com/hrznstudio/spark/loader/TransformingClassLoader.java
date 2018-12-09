@@ -1,7 +1,8 @@
 package com.hrznstudio.spark.loader;
 
+import com.hrznstudio.spark.PatcherRoster;
+import com.hrznstudio.spark.patch.IBytePatcher;
 import com.hrznstudio.spark.patch.IPatchContext;
-import com.hrznstudio.spark.patch.PatcherRoster;
 import org.apache.logging.log4j.LogManager;
 import org.apache.logging.log4j.Logger;
 
@@ -144,6 +145,11 @@ public class TransformingClassLoader extends MutableClassLoader implements IPatc
             input.readFully(bytes);
             return bytes;
         }
+    }
+
+    @Override
+    public IBytePatcher getPatcher() {
+        return PatcherRoster.INSTANCE;
     }
 
     private byte[] readClassBytes(URLConnection connection) throws IOException {
